@@ -1,7 +1,10 @@
 # Импортируем необходимые классы.
 from secrets import API_KEY
 from telegram.ext import Updater, MessageHandler, Filters
-from telegram.ext import CallbackContext, CommandHandler
+from telegram.ext import ConversationHandler, CommandHandler
+from telegram import ReplyKeyboardMarkup
+
+WAITING_FOR_AUTH = range(1)
 
 
 # Определяем функцию-обработчик сообщений.
@@ -16,33 +19,46 @@ def hello(update, context):
     message1 = 'Привет. Меня зовут Кибер-бот! \nЯ хочу помочь тебе разобраться с такой непростой вещью, как кибербезопасность.'
     message2 = 'Обещаю, что обучение будет нескучным и продуктивным!'
 
-    message3 = 'Давай начнем с авторизации. Я храню результаты своих пользователей, чтобы они могли сохранить их даже при создании нового аккаунта в Telegram.'
-    message4 = 'Для начала давай придумаем никнейм'
     update.message.reply_text(message1)
+    update.message.reply_text(message2)
+    start(update, context)
+
+
+def start(update, context):
+    user_id = update.message.from_user.id
+    message = 'Давай начнем с авторизации. Я храню результаты своих пользователей, чтобы они могли сохранить их даже при создании нового аккаунта в Telegram.'
+    markup = ReplyKeyboardMarkup([['Войти'], ['Зарегестрироваться']], one_time_keyboard=False)
+    update.message.reply_text(message, reply_markup=markup)
+    return WAITING_FOR_AUTH
+
+
+def register(update, context):
+    update.message.reply_text('ЗАРЕГИСТРИРОВАН')
+
+
+def log_in(update, context):
+    update.message.reply_text('ВХОД ВЫПОЛНЕН')
+
+
+def zero(update, context):
+    pass
 
 
 def main():
-    # Создаём объект updater.
-    # Вместо слова "TOKEN" надо разместить полученный от @BotFather токен
     updater = Updater(API_KEY, use_context=True)
-
-    # Получаем из него диспетчер сообщений.
     dp = updater.dispatcher
 
-    # Создаём обработчик сообщений типа Filters.text
-    # из описанной выше функции echo()
-    # После регистрации обработчика в диспетчере
-    # эта функция будет вызываться при получении сообщения
-    # с типом "текст", т. е. текстовых сообщений.
-    text_handler = MessageHandler(Filters.text, hello)
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', hello)],
+        states={
+            WAITING_FOR_AUTH: [MessageHandler(Filters.regex('^(Зарегестрироваться)$'), register),
+                               MessageHandler(Filters.regex('^(Войти)$'), log_in)]
+        },
+        fallbacks=[CommandHandler('cancel', zero)]
+    )
 
-    # Регистрируем обработчик в диспетчере.
-    dp.add_handler(text_handler)
-    # Запускаем цикл приема и обработки сообщений.
+    dp.add_handler(conv_handler)
     updater.start_polling()
-
-    # Ждём завершения приложения.
-    # (например, получения сигнала SIG_TERM при нажатии клавиш Ctrl+C)
     updater.idle()
 
 
